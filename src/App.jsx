@@ -126,6 +126,7 @@ export default function App() {
   // ── Theme / Settings state ──
   const [theme, setTheme]           = useState(() => localStorage.getItem("app_theme") || "dark");
   const [accentColor, setAccentColor] = useState(() => localStorage.getItem("app_accent") || "purple");
+  const [clockTime, setClockTime] = useState(new Date());
 
   // Login state
   const [loginMethod, setLoginMethod] = useState("");
@@ -650,6 +651,12 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteTitle, noteContent, activePanel, noteEditorOpen]);
 
+  // clock tick
+  useEffect(() => {
+    const id = setInterval(() => setClockTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // ── Theme: apply class to body ──
   useEffect(() => {
     document.body.className = theme === "light" ? "theme-light" : "";
@@ -728,7 +735,7 @@ export default function App() {
   // ── CSS ───────────────────────────────────────────────────
 
   const styles = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=Dancing+Script:wght@600;700&display=swap');
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; background: #0a0a0f; color: #e8e6ff; min-height: 100vh; }
@@ -928,6 +935,45 @@ export default function App() {
       margin-bottom: 10px; line-height: 1.2;
     }
     .home-sub { color: rgba(255,255,255,0.4); font-size: 14px; margin-bottom: 36px; }
+    .home-widgets { width: 100%; max-width: 940px; align-self: flex-start; }
+    .hw-top-grid { display: grid; grid-template-columns: 240px 1fr; gap: 16px; margin-bottom: 18px; }
+    .hw-user-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 28px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .hw-avatar { width: 72px !important; height: 72px !important; font-size: 26px !important; flex-shrink: 0; }
+    .hw-user-info { text-align: center; }
+    .hw-user-name { font-size: 16px; font-weight: 600; color: #f0eeff; margin-bottom: 5px; }
+    .hw-user-email { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+    .hw-user-id { font-size: 10px; color: rgba(255,255,255,0.2); font-family: monospace; }
+    .hw-welcome-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px 28px; }
+    .hw-welcome-script { font-family: "Dancing Script", cursive; font-size: 46px; font-weight: 700; background: linear-gradient(135deg,#a78bfa,#60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1.15; margin-bottom: 4px; }
+    .hw-welcome-sub { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.65); margin-bottom: 14px; }
+    .hw-feature-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; }
+    .hw-feature-list li { font-size: 12.5px; color: rgba(255,255,255,0.45); padding-left: 16px; position: relative; line-height: 1.5; }
+    .hw-feature-list li::before { content: ""; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: linear-gradient(135deg,#a78bfa,#60a5fa); }
+    .hw-widgets-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .hw-slot { background: rgba(255,255,255,0.03); border: 1.5px dashed rgba(255,255,255,0.13); border-radius: 20px; padding: 18px 20px; min-height: 230px; }
+    .hw-slot-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .hw-slot-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; color: rgba(255,255,255,0.3); font-weight: 600; }
+    .hw-pencil { color: rgba(255,255,255,0.22); cursor: pointer; display: flex; align-items: center; transition: color 0.2s; }
+    .hw-pencil:hover { color: rgba(167,139,250,0.7); }
+    .hw-open-btn { background: none; border: 1px solid rgba(167,139,250,0.3); color: #a78bfa; font-size: 11px; padding: 3px 9px; border-radius: 6px; cursor: pointer; font-family: "DM Sans",sans-serif; transition: all 0.18s; }
+    .hw-open-btn:hover { background: rgba(167,139,250,0.1); }
+    .hw-time { font-size: 34px; font-weight: 700; font-family: "Syne",sans-serif; color: #fff; line-height: 1; }
+    .hw-date-lbl { font-size: 12px; color: rgba(255,255,255,0.38); margin-top: 5px; margin-bottom: 14px; }
+    .hw-analog { width: 88px; height: 88px; }
+    .hw-kb-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hw-kb-col-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .hw-kb-col-title span { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 1px 6px; font-size: 10px; }
+    .hw-kb-todo { color: #60a5fa; }
+    .hw-kb-inprog { color: #f59e0b; }
+    .hw-kb-task { font-size: 11.5px; padding: 6px 9px; border-radius: 7px; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid rgba(255,255,255,0.06); }
+    .hw-kb-empty { font-size: 11px; color: rgba(255,255,255,0.18); font-style: italic; }
+    .hw-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 0; color: rgba(255,255,255,0.2); font-size: 12px; text-align: center; }
+    .hw-empty-state p { margin: 0; }
+    .hw-cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+    .hw-cal-hdr { font-size: 9.5px; color: rgba(255,255,255,0.22); text-align: center; padding: 3px 0; font-weight: 600; }
+    .hw-cal-day { font-size: 11px; padding: 5px 2px; border-radius: 6px; color: rgba(255,255,255,0.48); text-align: center; }
+    .hw-today { background: linear-gradient(135deg,#7c3aed,#4f46e5); color: #fff !important; font-weight: 700; border-radius: 8px; }
+    .hw-cal-empty { visibility: hidden; }
     .info-box {
       padding: 18px 20px; background: rgba(255,255,255,0.03);
       border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);
@@ -1595,16 +1641,100 @@ export default function App() {
             <main className="dash-main" style={(activePanel === "kanban" || activePanel === "notes") ? { display: "none" } : {}}>
 
               {activePanel === "home" && (
-                <div className="home-content">
-                  <div className="big-avatar">
-                    {displayFirst[0]?.toUpperCase() || "U"}
+                <div className="home-widgets">
+                  <div className="hw-top-grid">
+                    <div className="hw-user-card">
+                      <div className="big-avatar hw-avatar">{displayFirst[0]?.toUpperCase() || "U"}</div>
+                      <div className="hw-user-info">
+                        <div className="hw-user-name">{displayFirst} {displayLast}</div>
+                        <div className="hw-user-email">{user?.email}</div>
+                        <div className="hw-user-id">ID: {user?.uid?.slice(0, 16)}…</div>
+                      </div>
+                    </div>
+                    <div className="hw-welcome-card">
+                      <div className="hw-welcome-script">Welcome to Plio</div>
+                      <div className="hw-welcome-sub">Plio is a mini workspace</div>
+                      <ul className="hw-feature-list">
+                        <li>Kanban Board — Create multiple boards, manage tasks across columns.</li>
+                        <li>Notes — Create, edit, and view notes.</li>
+                        <li>Light / Dark Theme — Toggle between dark and light mode.</li>
+                        <li>Notifications — Overdue task alerts in the header.</li>
+                      </ul>
+                    </div>
                   </div>
-                  <div className="welcome-text">
-                    Welcome,<br />{displayFirst}!
+                  <div className="hw-widgets-grid">
+                    {(() => {
+                      const ch = clockTime.getHours() % 12, cm = clockTime.getMinutes(), cs = clockTime.getSeconds();
+                      const secDeg = cs * 6, minDeg = cm * 6 + cs * 0.1, hrDeg = ch * 30 + cm * 0.5;
+                      return (
+                        <div className="hw-slot">
+                          <div className="hw-slot-header">
+                            <span className="hw-slot-title">Clock</span>
+                            <span className="hw-pencil"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+                          </div>
+                          <div className="hw-time">{clockTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
+                          <div className="hw-date-lbl">{clockTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</div>
+                          <svg className="hw-analog" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="44" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
+                            {[...Array(12)].map((_,i) => { const a=i*30*Math.PI/180, big=i%3===0; return <line key={i} x1={50+(big?35:39)*Math.sin(a)} y1={50-(big?35:39)*Math.cos(a)} x2={50+43*Math.sin(a)} y2={50-43*Math.cos(a)} stroke={big?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.15)"} strokeWidth={big?2:1.2} strokeLinecap="round"/>; })}
+                            <line x1="50" y1="50" x2={50+22*Math.sin(hrDeg*Math.PI/180)} y2={50-22*Math.cos(hrDeg*Math.PI/180)} stroke="rgba(255,255,255,0.9)" strokeWidth="3.5" strokeLinecap="round"/>
+                            <line x1="50" y1="50" x2={50+32*Math.sin(minDeg*Math.PI/180)} y2={50-32*Math.cos(minDeg*Math.PI/180)} stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round"/>
+                            <line x1={50-8*Math.sin(secDeg*Math.PI/180)} y1={50+8*Math.cos(secDeg*Math.PI/180)} x2={50+36*Math.sin(secDeg*Math.PI/180)} y2={50-36*Math.cos(secDeg*Math.PI/180)} stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+                            <circle cx="50" cy="50" r="3" fill="#a78bfa"/>
+                          </svg>
+                        </div>
+                      );
+                    })()}
+                    <div className="hw-slot">
+                      <div className="hw-slot-header">
+                        <span className="hw-slot-title">{"Tasks" + (kanbanBoard ? " · " + kanbanBoard.name : "")}</span>
+                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <button onClick={()=>setActivePanel("kanban")} className="hw-open-btn">Open →</button>
+                          <span className="hw-pencil"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+                        </div>
+                      </div>
+                      {tasks.length > 0 ? (
+                        <div className="hw-kb-cols">
+                          <div>
+                            <div className="hw-kb-col-title hw-kb-todo">Todo <span>{tasks.filter(t=>t.status==="todo").length}</span></div>
+                            {tasks.filter(t=>t.status==="todo").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
+                            {tasks.filter(t=>t.status==="todo").length===0 && <div className="hw-kb-empty">No tasks</div>}
+                          </div>
+                          <div>
+                            <div className="hw-kb-col-title hw-kb-inprog">In Progress <span>{tasks.filter(t=>t.status==="inprogress").length}</span></div>
+                            {tasks.filter(t=>t.status==="inprogress").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
+                            {tasks.filter(t=>t.status==="inprogress").length===0 && <div className="hw-kb-empty">No tasks</div>}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="hw-empty-state">
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                          <p>Open a board to see tasks</p>
+                          <button className="hw-open-btn" onClick={()=>setActivePanel("kanban")}>Go to Kanban</button>
+                        </div>
+                      )}
+                    </div>
+                    {(() => {
+                      const y=clockTime.getFullYear(), mo=clockTime.getMonth(), td=clockTime.getDate();
+                      const first=new Date(y,mo,1).getDay(), days=new Date(y,mo+1,0).getDate();
+                      const cells=[];
+                      for(let i=0;i<first;i++) cells.push(null);
+                      for(let d=1;d<=days;d++) cells.push(d);
+                      while(cells.length%7!==0) cells.push(null);
+                      return (
+                        <div className="hw-slot">
+                          <div className="hw-slot-header">
+                            <span className="hw-slot-title">{clockTime.toLocaleDateString("en-US",{month:"long",year:"numeric"})}</span>
+                            <span className="hw-pencil"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+                          </div>
+                          <div className="hw-cal-grid">
+                            {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} className="hw-cal-hdr">{d}</div>)}
+                            {cells.map((d,i)=>(<div key={i} className={"hw-cal-day" + (d===td ? " hw-today" : "") + (!d ? " hw-cal-empty" : "")}>{d||""}</div>))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <p className="home-sub">
-                    {displayFirst} {displayLast} · You're all set ✓
-                  </p>
                 </div>
               )}
 
