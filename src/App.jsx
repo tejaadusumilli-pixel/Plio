@@ -22,7 +22,7 @@ import {
   getFirestore, doc, setDoc, getDoc,
   collection, query, where, getDocs, orderBy,
   addDoc, updateDoc, deleteDoc, serverTimestamp,
-  arrayUnion,
+  arrayUnion, arrayRemove, deleteField,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -67,6 +67,10 @@ export default function App() {
   const [shareEmail, setShareEmail]         = useState("");
   const [shareError, setShareError]         = useState("");
   const [shareMembers, setShareMembers]     = useState([]);
+  const [shareRole, setShareRole]           = useState("edit");
+  const [currentBoardRole, setCurrentBoardRole] = useState("owner");
+  const [noteShareRole, setNoteShareRole]   = useState("edit");
+  const [currentNoteRole, setCurrentNoteRole] = useState("owner");
   const [uidCopied, setUidCopied]           = useState(false);
   const [verifSent, setVerifSent]           = useState(false);
   const [verifError, setVerifError]         = useState("");
@@ -221,7 +225,17 @@ export default function App() {
       const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setTasks(tasks);
       setKanbanBoard(board);
-      setShareMembers(board.memberEmails || []);
+      const membersArr = (board.memberIds || []).map(uid => ({
+        uid,
+        email: (board.memberEmailMap || {})[uid] || uid,
+        role: (board.memberRoles || {})[uid] || "edit"
+      }));
+      setShareMembers(membersArr);
+      if (board.ownerId === user.uid) {
+        setCurrentBoardRole("owner");
+      } else {
+        setCurrentBoardRole((board.memberRoles || {})[user.uid] || "edit");
+      }
     } catch (e) {
       setError("Failed to open board: " + e.message);
     }
@@ -252,18 +266,41 @@ export default function App() {
       }
 
       if (memberId === user.uid) { setShareError("You can't add yourself."); setKanbanLoading(false); return; }
+      if (shareMembers.some(m => m.uid === memberId)) { setShareError("Already a member."); setKanbanLoading(false); return; }
 
-      await updateDoc(doc(db, "boards", kanbanBoard.id), {
-        memberIds: arrayUnion(memberId),
-        memberEmails: arrayUnion(memberEmail),
-      });
-      setShareMembers(prev => [...prev, memberEmail]);
+      const roleUpdates = { memberIds: arrayUnion(memberId) };
+      roleUpdates["memberRoles." + memberId] = shareRole;
+      roleUpdates["memberEmailMap." + memberId] = memberEmail;
+      await updateDoc(doc(db, "boards", kanbanBoard.id), roleUpdates);
+      setShareMembers(prev => [...prev, { uid: memberId, email: memberEmail, role: shareRole }]);
       setShareEmail("");
+      setShareRole("edit");
       setShowShareModal(false);
     } catch (e) {
       setShareError("Failed to add member: " + e.message);
     }
     setKanbanLoading(false);
+  };
+
+  const removeMember = async (uid) => {
+    if (!kanbanBoard) return;
+    try {
+      const updates = { memberIds: arrayRemove(uid) };
+      updates["memberRoles." + uid] = deleteField();
+      updates["memberEmailMap." + uid] = deleteField();
+      await updateDoc(doc(db, "boards", kanbanBoard.id), updates);
+      setShareMembers(prev => prev.filter(m => m.uid !== uid));
+    } catch (e) { setShareError("Failed to remove member."); }
+  };
+
+  const updateMemberRole = async (uid, role) => {
+    if (!kanbanBoard) return;
+    try {
+      const updates = {};
+      updates["memberRoles." + uid] = role;
+      await updateDoc(doc(db, "boards", kanbanBoard.id), updates);
+      setShareMembers(prev => prev.map(m => m.uid === uid ? { ...m, role } : m));
+    } catch (e) { setShareError("Failed to update role."); }
   };
 
   // Returns error string or "" if valid
@@ -538,8 +575,11 @@ export default function App() {
       if (sharedWith.includes(memberId)) { setNoteShareError("Already shared with this user."); setNoteShareSaving(false); return; }
       sharedWith.push(memberId);
       const sharedEmails = [...(activeNote.sharedEmails || []), memberEmail];
-      await updateDoc(doc(db, "notes", activeNote.id), { sharedWith, sharedEmails });
-      const updatedNote = { ...activeNote, sharedWith, sharedEmails };
+      const noteRoleUpdates = { sharedWith, sharedEmails };
+      noteRoleUpdates["shareRoles." + memberId] = noteShareRole;
+      noteRoleUpdates["shareEmailMap." + memberId] = memberEmail;
+      await updateDoc(doc(db, "notes", activeNote.id), noteRoleUpdates);
+      const updatedNote = { ...activeNote, sharedWith, sharedEmails, shareRoles: { ...(activeNote.shareRoles || {}), [memberId]: noteShareRole }, shareEmailMap: { ...(activeNote.shareEmailMap || {}), [memberId]: memberEmail } };
       activeNoteRef.current = updatedNote;
       setActiveNote(updatedNote);
       setNotes(prev => prev.map(n => n.id === activeNote.id ? updatedNote : n));
@@ -548,6 +588,37 @@ export default function App() {
       setNoteShareError("Failed to share: " + e.message);
     }
     setNoteShareSaving(false);
+  };
+
+  const removeNoteShare = async (uid) => {
+    if (!activeNote?.id) return;
+    try {
+      const sharedWith = (activeNote.sharedWith || []).filter(id => id !== uid);
+      const uid2email = activeNote.shareEmailMap || {};
+      const removedEmail = uid2email[uid];
+      const sharedEmails = (activeNote.sharedEmails || []).filter(e => e !== removedEmail);
+      const noteUpd = { sharedWith, sharedEmails };
+      noteUpd["shareRoles." + uid] = deleteField();
+      noteUpd["shareEmailMap." + uid] = deleteField();
+      await updateDoc(doc(db, "notes", activeNote.id), noteUpd);
+      const updatedNote = { ...activeNote, sharedWith, sharedEmails };
+      activeNoteRef.current = updatedNote;
+      setActiveNote(updatedNote);
+      setNotes(prev => prev.map(n => n.id === activeNote.id ? updatedNote : n));
+    } catch (e) { setNoteShareError("Failed to remove."); }
+  };
+
+  const updateNoteRole = async (uid, role) => {
+    if (!activeNote?.id) return;
+    try {
+      const noteUpd = {};
+      noteUpd["shareRoles." + uid] = role;
+      await updateDoc(doc(db, "notes", activeNote.id), noteUpd);
+      const updatedNote = { ...activeNote, shareRoles: { ...(activeNote.shareRoles || {}), [uid]: role } };
+      activeNoteRef.current = updatedNote;
+      setActiveNote(updatedNote);
+      setNotes(prev => prev.map(n => n.id === activeNote.id ? updatedNote : n));
+    } catch (e) { setNoteShareError("Failed to update role."); }
   };
 
   const openNote = (note) => {
@@ -1132,6 +1203,15 @@ export default function App() {
     .member-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
     .member-chip { padding: 8px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 13px; color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 8px; }
     .member-chip-owner { color: #a78bfa; font-size: 11px; margin-left: auto; }
+    .role-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+    .role-owner { background: rgba(167,139,250,0.15); color: #a78bfa; }
+    .role-view  { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+    .role-edit  { background: rgba(34,197,94,0.15);   color: #4ade80; }
+    .role-full  { background: rgba(239,68,68,0.12);   color: #f87171; }
+    .role-select { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; color: rgba(255,255,255,0.7); font-size: 11px; padding: 2px 6px; cursor: pointer; }
+    .role-select:focus { outline: none; border-color: rgba(167,139,250,0.5); }
+    .member-remove { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1; transition: color 0.15s; }
+    .member-remove:hover { color: #f87171; }
     .kb-loading { display: flex; align-items: center; justify-content: center; flex: 1; color: rgba(255,255,255,0.35); font-size: 14px; gap: 10px; }
 
     /* Boards list */
@@ -1488,6 +1568,9 @@ export default function App() {
     body.theme-light .kanban-col-title { color: rgba(0,0,0,0.5); }
     body.theme-light .overlay-inner .label { color: rgba(0,0,0,0.5); }
     body.theme-light .member-chip-owner { color: rgba(0,0,0,0.4); }
+    body.theme-light .role-select { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.7); }
+    body.theme-light .member-remove { color: rgba(0,0,0,0.25); }
+    body.theme-light .member-remove:hover { color: #dc2626; }
     body.theme-light .error { background: rgba(239,68,68,0.08); }
     /* Task overdue light mode */
     body.theme-light .task-card.task-overdue { background: rgba(239,68,68,0.06); }
@@ -2195,11 +2278,11 @@ export default function App() {
                                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                               </svg>
                             )}
-                            <button
+                            {(note.ownerId === user?.uid || !note.ownerId) && <button
                               className="note-delete-btn"
                               onClick={e => { e.stopPropagation(); deleteNote(note.id); }}
                               title="Delete"
-                            >×</button>
+                            >×</button>}
                           </div>
                           <div className="note-item-preview">{note.content?.replace(/<[^>]*>/g, "").replace(/\n/g, " ") || "No content yet"}</div>
                           <div className="note-item-date">{relDate(note.updatedAt)}</div>
@@ -2233,39 +2316,63 @@ export default function App() {
                         <div className="overlay-modal" onClick={e => e.target === e.currentTarget && (setShowNoteShare(false), setNoteShareError(""))}>
                           <div className="overlay-inner" style={{ maxWidth: 420 }}>
                             <div className="overlay-title">Share Note</div>
-                            {(activeNote.sharedEmails?.length > 0) && (
-                              <div className="member-list" style={{ marginBottom: 16 }}>
-                                {activeNote.sharedEmails.map(e => (
-                                  <div key={e} className="member-chip">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                                    {e}
-                                  </div>
-                                ))}
+                            <div className="member-list">
+                              <div className="member-chip">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                                <span style={{flex:1}}>{user?.email}</span>
+                                <span className="role-badge role-owner">Owner</span>
                               </div>
-                            )}
-                            <div className="input-group">
-                              <label className="label">Add by Email or User ID</label>
-                              <input
-                                className="input"
-                                type="text"
-                                placeholder="email@example.com  or  User ID"
-                                value={noteShareInput}
-                                onChange={e => { setNoteShareInput(e.target.value); setNoteShareError(""); }}
-                                onKeyDown={e => e.key === "Enter" && shareNote(noteShareInput)}
-                                autoFocus
-                              />
+                              {(activeNote.sharedWith || []).map((uid, i) => {
+                                const email = (activeNote.shareEmailMap || {})[uid] || (activeNote.sharedEmails || [])[i] || uid;
+                                const role = (activeNote.shareRoles || {})[uid] || "edit";
+                                const isNoteOwner = activeNote.ownerId === user?.uid || !activeNote.ownerId;
+                                return (
+                                  <div key={uid} className="member-chip">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                                    <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{email}</span>
+                                    {isNoteOwner ? (
+                                      <select className="role-select" value={role} onChange={e => updateNoteRole(uid, e.target.value)}>
+                                        <option value="view">View</option>
+                                        <option value="edit">Edit</option>
+                                        <option value="full">Full Access</option>
+                                      </select>
+                                    ) : (
+                                      <span className={"role-badge role-" + role}>{role === "full" ? "Full" : role === "edit" ? "Edit" : "View"}</span>
+                                    )}
+                                    {isNoteOwner && <button className="member-remove" onClick={() => removeNoteShare(uid)} title="Remove">×</button>}
+                                  </div>
+                                );
+                              })}
+                              {!(activeNote.sharedWith?.length > 0) && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", margin: "4px 0 0" }}>Not shared yet</p>}
                             </div>
+                            {(activeNote.ownerId === user?.uid || !activeNote.ownerId) && (
+                              <>
+                                <div className="input-group">
+                                  <label className="label">Add by Email or User ID</label>
+                                  <input className="input" type="text" placeholder="email@example.com  or  User ID" value={noteShareInput} onChange={e => { setNoteShareInput(e.target.value); setNoteShareError(""); }} onKeyDown={e => e.key === "Enter" && shareNote(noteShareInput)} autoFocus />
+                                </div>
+                                <div className="input-group" style={{marginTop:0}}>
+                                  <label className="label">Permission</label>
+                                  <select className="input" value={noteShareRole} onChange={e => setNoteShareRole(e.target.value)} style={{cursor:"pointer"}}>
+                                    <option value="view">View — can read only</option>
+                                    <option value="edit">Edit — can read and edit</option>
+                                    <option value="full">Full Access — view, edit and delete</option>
+                                  </select>
+                                </div>
+                              </>
+                            )}
                             <div className="overlay-actions">
                               {noteShareError && <div className="error" style={{ fontSize: 12, marginBottom: 0 }}>{noteShareError}</div>}
                               <button className="kb-btn kb-btn-secondary" onClick={() => { setShowNoteShare(false); setNoteShareError(""); setNoteShareInput(""); }}>Close</button>
-                              <button className="kb-btn kb-btn-primary" onClick={() => shareNote(noteShareInput)} disabled={noteShareSaving || !noteShareInput.trim()}>
-                                {noteShareSaving ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "Share"}
-                              </button>
+                              {(activeNote.ownerId === user?.uid || !activeNote.ownerId) && (
+                                <button className="kb-btn kb-btn-primary" onClick={() => shareNote(noteShareInput)} disabled={noteShareSaving || !noteShareInput.trim()}>
+                                  {noteShareSaving ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "Share"}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
                       )}
-
                       <div className="notes-editor-header">
                         <div className="notes-save-indicator">
                           {noteSaving && (
@@ -2476,43 +2583,58 @@ export default function App() {
                     <div className="overlay-inner">
                       <div className="overlay-title">Share Board</div>
                       <div className="member-list">
-                        {shareMembers.length === 0
-                          ? <p style={{ fontSize: 13, color: "rgba(255,255,255,0.3)" }}>No members yet</p>
-                          : shareMembers.map(m => (
-                            <div key={m} className="member-chip">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                              {m}
-                              {m === kanbanBoard?.ownerEmail && <span className="member-chip-owner">owner</span>}
-                            </div>
-                          ))
-                        }
-                      </div>
-                      <div className="input-group">
-                        <label className="label">Add by Email or User ID</label>
-                        <input
-                          className="input"
-                          type="text"
-                          placeholder="email@example.com  or  User ID"
-                          value={shareEmail}
-                          onChange={e => setShareEmail(e.target.value)}
-                          onKeyDown={e => e.key === "Enter" && addMember(shareEmail)}
-                          autoComplete="off"
-                        />
-                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 6 }}>
-                          Find your User ID in <strong style={{ color: "rgba(255,255,255,0.4)" }}>Profile → User ID</strong>
+                        <div className="member-chip">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                          <span style={{flex:1}}>{kanbanBoard?.ownerEmail}</span>
+                          <span className="role-badge role-owner">Owner</span>
                         </div>
+                        {shareMembers.map(m => (
+                          <div key={m.uid} className="member-chip">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.email}</span>
+                            {currentBoardRole === "owner" ? (
+                              <select className="role-select" value={m.role} onChange={e => updateMemberRole(m.uid, e.target.value)}>
+                                <option value="view">View</option>
+                                <option value="edit">Edit</option>
+                                <option value="full">Full Access</option>
+                              </select>
+                            ) : (
+                              <span className={"role-badge role-" + m.role}>{m.role === "full" ? "Full" : m.role === "edit" ? "Edit" : "View"}</span>
+                            )}
+                            {currentBoardRole === "owner" && <button className="member-remove" onClick={() => removeMember(m.uid)} title="Remove">×</button>}
+                          </div>
+                        ))}
+                        {shareMembers.length === 0 && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", margin: "4px 0 0" }}>No members yet</p>}
                       </div>
+                      {currentBoardRole === "owner" && (
+                        <>
+                          <div className="input-group">
+                            <label className="label">Add by Email or User ID</label>
+                            <input className="input" type="text" placeholder="email@example.com  or  User ID" value={shareEmail} onChange={e => setShareEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && addMember(shareEmail)} autoComplete="off" />
+                            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 6 }}>Find your User ID in <strong style={{ color: "rgba(255,255,255,0.4)" }}>Profile → User ID</strong></div>
+                          </div>
+                          <div className="input-group" style={{marginTop:0}}>
+                            <label className="label">Permission</label>
+                            <select className="input" value={shareRole} onChange={e => setShareRole(e.target.value)} style={{cursor:"pointer"}}>
+                              <option value="view">View — can see tasks only</option>
+                              <option value="edit">Edit — can add and edit tasks</option>
+                              <option value="full">Full Access — view, edit and delete</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
                       <div className="overlay-actions">
                         {shareError && <div className="error" style={{ fontSize: 12, marginBottom: 0 }}>{shareError}</div>}
                         <button className="kb-btn kb-btn-secondary" onClick={() => { setShowShareModal(false); setShareError(""); }}>Close</button>
-                        <button className="kb-btn kb-btn-primary" onClick={() => addMember(shareEmail)} disabled={kanbanLoading || !shareEmail.trim()}>
-                          {kanbanLoading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "Add"}
-                        </button>
+                        {currentBoardRole === "owner" && (
+                          <button className="kb-btn kb-btn-primary" onClick={() => addMember(shareEmail)} disabled={kanbanLoading || !shareEmail.trim()}>
+                            {kanbanLoading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : "Add"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
-
                 {/* Task Detail Modal */}
                 {selectedTask && (
                   <div className="overlay-modal" onClick={e => e.target === e.currentTarget && setSelectedTask(null)}>
@@ -2619,7 +2741,7 @@ export default function App() {
                             Share
                           </button>
                         )}
-                        <button className="kb-btn kb-btn-primary" onClick={() => setShowAddTask(true)}>+ Add Task</button>
+                        {(kanbanBoard?.ownerId === user?.uid || currentBoardRole === "edit" || currentBoardRole === "full") && <button className="kb-btn kb-btn-primary" onClick={() => setShowAddTask(true)}>+ Add Task</button>}
                       </div>
                     </div>
 
@@ -2665,7 +2787,7 @@ export default function App() {
                                       {fmtDate(task.endDate) && <span>⏰ {fmtDate(task.endDate)}</span>}
                                     </div>
                                   )}
-                                  <button className="task-delete" onClick={e => { e.stopPropagation(); handleDeleteTask(task); }} title="Delete">×</button>
+                                  {(kanbanBoard?.ownerId === user?.uid || currentBoardRole === "full") && <button className="task-delete" onClick={e => { e.stopPropagation(); handleDeleteTask(task); }} title="Delete">×</button>}
                                   </div>
                                 );
                               })}
