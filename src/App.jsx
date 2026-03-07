@@ -627,11 +627,17 @@ export default function App() {
     setNoteTitle(note.title || "");
     setNoteContent(note.content || "");
     setNoteEditorOpen(true);
+    // Determine role for this note
+    const isNoteOwner = note.uid === user?.uid;
+    const role = isNoteOwner ? "owner" : ((note.shareRoles || {})[user?.uid] || "edit");
+    setCurrentNoteRole(role);
+    const editable = role !== "view";
     // Load existing content into TipTap (setTimeout ensures editor is ready)
     setTimeout(() => {
       if (editor) {
+        editor.setEditable(editable);
         editor.commands.setContent(note.content || "", false);
-        editor.commands.focus("end");
+        if (editable) editor.commands.focus("end");
       }
     }, 0);
   };
@@ -727,7 +733,7 @@ export default function App() {
       const current = activeNoteRef.current;
       // Skip if nothing changed on existing note
       if (current?.id && current.title === noteTitle && current.content === noteContent) return;
-      saveNote(current?.id || null, noteTitle, noteContent);
+      if (currentNoteRole !== "view") saveNote(current?.id || null, noteTitle, noteContent);
     }, 1500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2219,10 +2225,16 @@ export default function App() {
                             Firebase Console → Firestore → Rules
                           </a>:
                           <code>{`match /notes/{noteId} {
-  allow read, write: if request.auth != null
-    && request.auth.uid == resource.data.uid;
+  allow read: if request.auth != null
+    && (request.auth.uid == resource.data.uid
+      || request.auth.uid in resource.data.sharedWith);
   allow create: if request.auth != null
     && request.auth.uid == request.resource.data.uid;
+  allow update: if request.auth != null
+    && (request.auth.uid == resource.data.uid
+      || request.auth.uid in resource.data.sharedWith);
+  allow delete: if request.auth != null
+    && request.auth.uid == resource.data.uid;
 }`}</code>
                         </>
                       ) : (
@@ -2375,6 +2387,7 @@ export default function App() {
                       )}
                       <div className="notes-editor-header">
                         <div className="notes-save-indicator">
+                          {currentNoteRole === "view" && <span style={{fontSize:11,padding:"2px 8px",background:"rgba(59,130,246,0.15)",color:"#60a5fa",borderRadius:10,fontWeight:600}}>View Only</span>}
                           {noteSaving && (
                             <><span className="spinner" style={{ width: 12, height: 12, borderTopColor: "rgba(167,139,250,0.8)" }} /> Saving…</>
                           )}
@@ -2422,10 +2435,12 @@ export default function App() {
                         placeholder="Note title…"
                         value={noteTitle}
                         onChange={e => { setNoteError(""); setNoteTitle(e.target.value); }}
+                        readOnly={currentNoteRole === "view"}
+                        style={currentNoteRole === "view" ? {cursor:"default",opacity:0.7} : {}}
                       />
                       <div className="notes-editor-divider" />
                       {/* TipTap Toolbar */}
-                      {editor && (
+                      {editor && currentNoteRole !== "view" && (
                         <div className="tiptap-toolbar">
                           <button className={`tt-btn${editor.isActive("bold") ? " active" : ""}`} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }} title="Bold (Ctrl+B)"><strong>B</strong></button>
                           <button className={`tt-btn${editor.isActive("italic") ? " active" : ""}`} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }} title="Italic (Ctrl+I)"><em>I</em></button>
