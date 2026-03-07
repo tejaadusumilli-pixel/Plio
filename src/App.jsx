@@ -133,6 +133,7 @@ export default function App() {
   const [wDragFrom, setWDragFrom] = useState(null);
   const [wDragOver, setWDragOver] = useState(null);
   const [widgetPicker, setWidgetPicker] = useState(null);
+  const [copiedUid, setCopiedUid] = useState(false);
 
   // Login state
   const [loginMethod, setLoginMethod] = useState("");
@@ -955,7 +956,7 @@ export default function App() {
     .hw-user-info { text-align: center; }
     .hw-user-name { font-size: 16px; font-weight: 600; color: #f0eeff; margin-bottom: 5px; }
     .hw-user-email { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
-    .hw-user-id { font-size: 10px; color: rgba(255,255,255,0.2); font-family: monospace; }
+    .hw-user-id-row { display: flex; align-items: center; gap: 4px; } .hw-user-id { font-size: 10px; color: rgba(255,255,255,0.2); font-family: monospace; } .hw-copy-btn { background: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: rgba(255,255,255,0.35); font-size: 11px; padding: 1px 5px; cursor: pointer; transition: all 0.15s; line-height: 1.4; } .hw-copy-btn:hover { border-color: rgba(167,139,250,0.6); color: #a78bfa; background: rgba(167,139,250,0.08); }
     .hw-welcome-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px 28px; }
     .hw-welcome-script { font-family: "Dancing Script", cursive; font-size: 46px; font-weight: 700; background: linear-gradient(135deg,#a78bfa,#60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1.15; margin-bottom: 4px; }
     .hw-welcome-sub { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.65); margin-bottom: 14px; }
@@ -1361,7 +1362,7 @@ export default function App() {
     body.theme-light .hw-user-card { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); }
     body.theme-light .hw-user-name { color: #1a1a2e; }
     body.theme-light .hw-user-email { color: rgba(0,0,0,0.5); }
-    body.theme-light .hw-user-id { color: rgba(0,0,0,0.3); }
+    body.theme-light .hw-user-id { color: rgba(0,0,0,0.3); } body.theme-light .hw-copy-btn { border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.35); } body.theme-light .hw-copy-btn:hover { border-color: rgba(109,40,217,0.5); color: #6d28d9; background: rgba(109,40,217,0.06); }
     body.theme-light .hw-welcome-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
     body.theme-light .hw-welcome-script { background: linear-gradient(135deg,#7c3aed,#4f46e5); -webkit-background-clip: text; background-clip: text; color: transparent; }
     body.theme-light .hw-welcome-sub { color: rgba(0,0,0,0.65); }
@@ -1715,7 +1716,7 @@ export default function App() {
                       <div className="hw-user-info">
                         <div className="hw-user-name">{displayFirst} {displayLast}</div>
                         <div className="hw-user-email">{user?.email}</div>
-                        <div className="hw-user-id">ID: {user?.uid?.slice(0, 16)}…</div>
+                        <div className="hw-user-id-row"><span className="hw-user-id">ID: {user?.uid?.slice(0, 16)}…</span><button className="hw-copy-btn" title="Copy ID" onClick={() => { navigator.clipboard.writeText(user?.uid || ""); setCopiedUid(true); setTimeout(() => setCopiedUid(false), 1500); }}>{copiedUid ? "✓" : "⎘"}</button></div>
                       </div>
                     </div>
                     <div className="hw-welcome-card">
