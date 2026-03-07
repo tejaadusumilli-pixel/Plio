@@ -127,6 +127,12 @@ export default function App() {
   const [theme, setTheme]           = useState(() => localStorage.getItem("app_theme") || "dark");
   const [accentColor, setAccentColor] = useState(() => localStorage.getItem("app_accent") || "purple");
   const [clockTime, setClockTime] = useState(new Date());
+  const [widgetSlots, setWidgetSlots] = useState(() => {
+    try { const s = localStorage.getItem("plio_ws"); return s ? JSON.parse(s) : ["clock","kanban","calendar"]; } catch(e) { return ["clock","kanban","calendar"]; }
+  });
+  const [wDragFrom, setWDragFrom] = useState(null);
+  const [wDragOver, setWDragOver] = useState(null);
+  const [widgetPicker, setWidgetPicker] = useState(null);
 
   // Login state
   const [loginMethod, setLoginMethod] = useState("");
@@ -665,6 +671,13 @@ export default function App() {
   }, [theme, accentColor]);
 
   // ── HANDLERS ──────────────────────────────────────────────
+  const saveWidgetSlots = (slots) => { setWidgetSlots(slots); localStorage.setItem("plio_ws", JSON.stringify(slots)); };
+  const handleWDragStart = (e, i) => { setWDragFrom(i); e.dataTransfer.effectAllowed = "move"; };
+  const handleWDragOver = (e, i) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setWDragOver(i); };
+  const handleWDrop = (e, i) => { e.preventDefault(); if (wDragFrom === null || wDragFrom === i) { setWDragFrom(null); setWDragOver(null); return; } const s = [...widgetSlots]; const tmp = s[i]; s[i] = s[wDragFrom]; s[wDragFrom] = tmp; saveWidgetSlots(s); setWDragFrom(null); setWDragOver(null); };
+  const handleWDragEnd = () => { setWDragFrom(null); setWDragOver(null); };
+  const removeWidget = (i) => { const s = [...widgetSlots]; s[i] = null; saveWidgetSlots(s); };
+  const addWidget = (i, type) => { const s = [...widgetSlots]; s[i] = type; saveWidgetSlots(s); setWidgetPicker(null); };
 
   const handleGoogleLogin = async () => {
     setLoading(true); clearError();
@@ -974,6 +987,24 @@ export default function App() {
     .hw-cal-day { font-size: 11px; padding: 5px 2px; border-radius: 6px; color: rgba(255,255,255,0.48); text-align: center; }
     .hw-today { background: linear-gradient(135deg,#7c3aed,#4f46e5); color: #fff !important; font-weight: 700; border-radius: 8px; }
     .hw-cal-empty { visibility: hidden; }
+    .hw-slot { cursor: grab; }
+    .hw-slot:active { cursor: grabbing; }
+    .hw-dragging { opacity: 0.4; transform: scale(0.98); }
+    .hw-drag-over { border-color: rgba(167,139,250,0.5) !important; background: rgba(167,139,250,0.06) !important; }
+    .hw-drag-handle { color: rgba(255,255,255,0.2); cursor: grab; display: flex; align-items: center; }
+    .hw-drag-handle:hover { color: rgba(255,255,255,0.5); }
+    .hw-remove-btn { background: none; border: none; color: rgba(255,255,255,0.2); font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1; transition: color 0.2s; font-family: sans-serif; }
+    .hw-remove-btn:hover { color: #f87171; }
+    .hw-slot-empty { display: flex; align-items: center; justify-content: center; border-style: dashed; }
+    .hw-add-widget { background: none; border: none; color: rgba(255,255,255,0.25); font-size: 13px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 10px; font-family: "DM Sans",sans-serif; transition: color 0.2s; padding: 20px; }
+    .hw-add-widget:hover { color: rgba(167,139,250,0.8); }
+    .hw-picker { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .hw-picker-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: rgba(255,255,255,0.3); margin-bottom: 4px; }
+    .hw-picker-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: rgba(255,255,255,0.7); font-size: 13px; padding: 10px 14px; cursor: pointer; text-align: left; font-family: "DM Sans",sans-serif; transition: all 0.18s; display: flex; align-items: center; gap: 8px; }
+    .hw-picker-btn:hover { background: rgba(167,139,250,0.1); border-color: rgba(167,139,250,0.3); color: #fff; }
+    .hw-picker-cancel { background: none; border: none; color: rgba(255,255,255,0.2); font-size: 12px; cursor: pointer; padding: 4px; font-family: "DM Sans",sans-serif; transition: color 0.2s; }
+    .hw-picker-cancel:hover { color: rgba(255,255,255,0.5); }
+    .hw-picker-empty { font-size: 12px; color: rgba(255,255,255,0.2); font-style: italic; text-align: center; padding: 8px 0; }
     .info-box {
       padding: 18px 20px; background: rgba(255,255,255,0.03);
       border-radius: 14px; border: 1px solid rgba(255,255,255,0.07);
@@ -1663,77 +1694,106 @@ export default function App() {
                     </div>
                   </div>
                   <div className="hw-widgets-grid">
-                    {(() => {
-                      const ch = clockTime.getHours() % 12, cm = clockTime.getMinutes(), cs = clockTime.getSeconds();
-                      const secDeg = cs * 6, minDeg = cm * 6 + cs * 0.1, hrDeg = ch * 30 + cm * 0.5;
-                      return (
-                        <div className="hw-slot">
-                          <div className="hw-slot-header">
-                            <span className="hw-slot-title">Clock</span>
-                            <span className="hw-pencil"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
-                          </div>
-                          <div className="hw-time">{clockTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
-                          <div className="hw-date-lbl">{clockTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</div>
-                          <svg className="hw-analog" viewBox="0 0 100 100">
-                            <circle cx="50" cy="50" r="44" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
-                            {[...Array(12)].map((_,i) => { const a=i*30*Math.PI/180, big=i%3===0; return <line key={i} x1={50+(big?35:39)*Math.sin(a)} y1={50-(big?35:39)*Math.cos(a)} x2={50+43*Math.sin(a)} y2={50-43*Math.cos(a)} stroke={big?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.15)"} strokeWidth={big?2:1.2} strokeLinecap="round"/>; })}
-                            <line x1="50" y1="50" x2={50+22*Math.sin(hrDeg*Math.PI/180)} y2={50-22*Math.cos(hrDeg*Math.PI/180)} stroke="rgba(255,255,255,0.9)" strokeWidth="3.5" strokeLinecap="round"/>
-                            <line x1="50" y1="50" x2={50+32*Math.sin(minDeg*Math.PI/180)} y2={50-32*Math.cos(minDeg*Math.PI/180)} stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round"/>
-                            <line x1={50-8*Math.sin(secDeg*Math.PI/180)} y1={50+8*Math.cos(secDeg*Math.PI/180)} x2={50+36*Math.sin(secDeg*Math.PI/180)} y2={50-36*Math.cos(secDeg*Math.PI/180)} stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
-                            <circle cx="50" cy="50" r="3" fill="#a78bfa"/>
-                          </svg>
+                    {widgetSlots.map((wType, slotIdx) => {
+                      const allWidgets = ["clock","kanban","calendar"];
+                      const usedWidgets = widgetSlots.filter(Boolean);
+                      const available = allWidgets.filter(w => !usedWidgets.includes(w));
+                      const isDragOver = wDragOver === slotIdx;
+                      const isDragging = wDragFrom === slotIdx;
+                      if (!wType) return (
+                        <div key={slotIdx} className={"hw-slot hw-slot-empty" + (isDragOver ? " hw-drag-over" : "")}
+                          onDragOver={(e) => handleWDragOver(e, slotIdx)} onDrop={(e) => handleWDrop(e, slotIdx)} onDragLeave={() => setWDragOver(null)}>
+                          {widgetPicker === slotIdx ? (
+                            <div className="hw-picker">
+                              <div className="hw-picker-title">Add Widget</div>
+                              {available.length > 0 ? available.map(w => (
+                                <button key={w} className="hw-picker-btn" onClick={() => addWidget(slotIdx, w)}>{w.charAt(0).toUpperCase() + w.slice(1)}</button>
+                              )) : <div className="hw-picker-empty">All widgets placed</div>}
+                              <button className="hw-picker-cancel" onClick={() => setWidgetPicker(null)}>Cancel</button>
+                            </div>
+                          ) : (
+                            <button className="hw-add-widget" onClick={() => setWidgetPicker(slotIdx)}>
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                              Add Widget
+                            </button>
+                          )}
                         </div>
                       );
-                    })()}
-                    <div className="hw-slot">
-                      <div className="hw-slot-header">
-                        <span className="hw-slot-title">{"Tasks" + (kanbanBoard ? " · " + kanbanBoard.name : "")}</span>
-                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <button onClick={()=>setActivePanel("kanban")} className="hw-open-btn">Open →</button>
-                          <span className="hw-pencil"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
-                        </div>
-                      </div>
-                      {tasks.length > 0 ? (
-                        <div className="hw-kb-cols">
-                          <div>
-                            <div className="hw-kb-col-title hw-kb-todo">Todo <span>{tasks.filter(t=>t.status==="todo").length}</span></div>
-                            {tasks.filter(t=>t.status==="todo").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
-                            {tasks.filter(t=>t.status==="todo").length===0 && <div className="hw-kb-empty">No tasks</div>}
+                      const renderContent = () => {
+                        if (wType === "clock") {
+                          const ch = clockTime.getHours() % 12, cm = clockTime.getMinutes(), cs = clockTime.getSeconds();
+                          const secDeg = cs * 6, minDeg = cm * 6 + cs * 0.1, hrDeg = ch * 30 + cm * 0.5;
+                          return (<>
+                            <div className="hw-time">{clockTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
+                            <div className="hw-date-lbl">{clockTime.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}</div>
+                            <svg className="hw-analog" viewBox="0 0 100 100">
+                              <circle cx="50" cy="50" r="44" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
+                              {[...Array(12)].map((_,i) => { const a=i*30*Math.PI/180, big=i%3===0; return <line key={i} x1={50+(big?35:39)*Math.sin(a)} y1={50-(big?35:39)*Math.cos(a)} x2={50+43*Math.sin(a)} y2={50-43*Math.cos(a)} stroke={big?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.15)"} strokeWidth={big?2:1.2} strokeLinecap="round"/>; })}
+                              <line x1="50" y1="50" x2={50+22*Math.sin(hrDeg*Math.PI/180)} y2={50-22*Math.cos(hrDeg*Math.PI/180)} stroke="rgba(255,255,255,0.9)" strokeWidth="3.5" strokeLinecap="round"/>
+                              <line x1="50" y1="50" x2={50+32*Math.sin(minDeg*Math.PI/180)} y2={50-32*Math.cos(minDeg*Math.PI/180)} stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round"/>
+                              <line x1={50-8*Math.sin(secDeg*Math.PI/180)} y1={50+8*Math.cos(secDeg*Math.PI/180)} x2={50+36*Math.sin(secDeg*Math.PI/180)} y2={50-36*Math.cos(secDeg*Math.PI/180)} stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+                              <circle cx="50" cy="50" r="3" fill="#a78bfa"/>
+                            </svg>
+                          </>);
+                        }
+                        if (wType === "kanban") return (<>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:8}}>
+                            <button onClick={()=>setActivePanel("kanban")} className="hw-open-btn">Open →</button>
                           </div>
-                          <div>
-                            <div className="hw-kb-col-title hw-kb-inprog">In Progress <span>{tasks.filter(t=>t.status==="inprogress").length}</span></div>
-                            {tasks.filter(t=>t.status==="inprogress").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
-                            {tasks.filter(t=>t.status==="inprogress").length===0 && <div className="hw-kb-empty">No tasks</div>}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="hw-empty-state">
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                          <p>Open a board to see tasks</p>
-                          <button className="hw-open-btn" onClick={()=>setActivePanel("kanban")}>Go to Kanban</button>
-                        </div>
-                      )}
-                    </div>
-                    {(() => {
-                      const y=clockTime.getFullYear(), mo=clockTime.getMonth(), td=clockTime.getDate();
-                      const first=new Date(y,mo,1).getDay(), days=new Date(y,mo+1,0).getDate();
-                      const cells=[];
-                      for(let i=0;i<first;i++) cells.push(null);
-                      for(let d=1;d<=days;d++) cells.push(d);
-                      while(cells.length%7!==0) cells.push(null);
+                          {tasks.length > 0 ? (
+                            <div className="hw-kb-cols">
+                              <div>
+                                <div className="hw-kb-col-title hw-kb-todo">Todo <span>{tasks.filter(t=>t.status==="todo").length}</span></div>
+                                {tasks.filter(t=>t.status==="todo").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
+                                {tasks.filter(t=>t.status==="todo").length===0 && <div className="hw-kb-empty">No tasks</div>}
+                              </div>
+                              <div>
+                                <div className="hw-kb-col-title hw-kb-inprog">In Progress <span>{tasks.filter(t=>t.status==="inprogress").length}</span></div>
+                                {tasks.filter(t=>t.status==="inprogress").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
+                                {tasks.filter(t=>t.status==="inprogress").length===0 && <div className="hw-kb-empty">No tasks</div>}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="hw-empty-state">
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                              <p>Open a board to see tasks</p>
+                              <button className="hw-open-btn" onClick={()=>setActivePanel("kanban")}>Go to Kanban</button>
+                            </div>
+                          )}
+                        </>);
+                        if (wType === "calendar") {
+                          const y=clockTime.getFullYear(), mo=clockTime.getMonth(), td=clockTime.getDate();
+                          const first=new Date(y,mo,1).getDay(), days=new Date(y,mo+1,0).getDate();
+                          const cells=[]; for(let i=0;i<first;i++) cells.push(null); for(let d=1;d<=days;d++) cells.push(d); while(cells.length%7!==0) cells.push(null);
+                          return (<>
+                            <div className="hw-cal-grid">
+                              {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} className="hw-cal-hdr">{d}</div>)}
+                              {cells.map((d,i)=>(<div key={i} className={"hw-cal-day" + (d===td ? " hw-today" : "") + (!d ? " hw-cal-empty" : "")}>{d||""}</div>))}
+                            </div>
+                          </>);
+                        }
+                        return null;
+                      };
+                      const WLABELS = { clock: "Clock", kanban: "Tasks" + (kanbanBoard ? " · " + kanbanBoard.name : ""), calendar: clockTime.toLocaleDateString("en-US",{month:"long",year:"numeric"}) };
                       return (
-                        <div className="hw-slot">
+                        <div key={slotIdx} draggable
+                          className={"hw-slot" + (isDragging ? " hw-dragging" : "") + (isDragOver ? " hw-drag-over" : "")}
+                          onDragStart={(e) => handleWDragStart(e, slotIdx)}
+                          onDragOver={(e) => handleWDragOver(e, slotIdx)}
+                          onDrop={(e) => handleWDrop(e, slotIdx)}
+                          onDragEnd={handleWDragEnd}
+                          onDragLeave={() => setWDragOver(null)}>
                           <div className="hw-slot-header">
-                            <span className="hw-slot-title">{clockTime.toLocaleDateString("en-US",{month:"long",year:"numeric"})}</span>
-                            <span className="hw-pencil"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+                            <div style={{display:"flex",alignItems:"center",gap:7}}>
+                              <span className="hw-drag-handle" title="Drag to reorder"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg></span>
+                              <span className="hw-slot-title">{WLABELS[wType]}</span>
+                            </div>
+                            <button className="hw-remove-btn" onClick={() => removeWidget(slotIdx)} title="Remove">×</button>
                           </div>
-                          <div className="hw-cal-grid">
-                            {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} className="hw-cal-hdr">{d}</div>)}
-                            {cells.map((d,i)=>(<div key={i} className={"hw-cal-day" + (d===td ? " hw-today" : "") + (!d ? " hw-cal-empty" : "")}>{d||""}</div>))}
-                          </div>
+                          {renderContent()}
                         </div>
                       );
-                    })()}
+                    })}
                   </div>
                 </div>
               )}
