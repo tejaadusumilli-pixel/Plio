@@ -88,6 +88,7 @@ export default function App() {
   const [addTaskError, setAddTaskError]     = useState("");
   const [editTaskError, setEditTaskError]   = useState("");
   const [overdueTasks, setOverdueTasks]     = useState([]);
+  const [allTasks, setAllTasks]             = useState([]);
   const [notifOpen, setNotifOpen]           = useState(false);
 
   // ── Notes state ──
@@ -194,16 +195,19 @@ export default function App() {
       // Fetch overdue tasks across all boards (background)
       const today = new Date().toISOString().split("T")[0];
       const allOverdue = [];
+      const allTasksArr = [];
       await Promise.all(boards.map(async (board) => {
         try {
           const tSnap = await getDocs(collection(db, "boards", board.id, "tasks"));
           tSnap.docs.forEach(d => {
             const t = { id: d.id, boardId: board.id, boardName: board.name, ...d.data() };
+            allTasksArr.push(t);
             if (t.status !== "done" && t.endDate && t.endDate < today) allOverdue.push(t);
           });
         } catch (_) {}
       }));
       setOverdueTasks(allOverdue);
+      setAllTasks(allTasksArr);
     } catch (e) {
       setError("Failed to load boards: " + e.message);
     }
@@ -630,13 +634,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // ── Kanban: load board when panel opens ──
+  // ── Kanban: load boards on user login ──
   useEffect(() => {
-    if (activePanel === "kanban" && user && !boardsLoaded) {
+    if (user && !boardsLoaded) {
       loadBoards();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePanel, user]);
+  }, [user]);
 
   // ── Notes: load when panel opens ──
   useEffect(() => {
@@ -1777,16 +1781,16 @@ export default function App() {
                           <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:8}}>
                             <button onClick={()=>setActivePanel("kanban")} className="hw-open-btn">Open →</button>
                           </div>
-                          {tasks.length > 0 ? (
+                          {boardsLoaded ? (
                             <div className="hw-kb-cols">
                               <div>
-                                <div className="hw-kb-col-title hw-kb-todo">Todo <span>{tasks.filter(t=>t.status==="todo").length}</span></div>
-                                {tasks.filter(t=>t.status==="todo").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
-                                {tasks.filter(t=>t.status==="todo").length===0 && <div className="hw-kb-empty">No tasks</div>}
+                                <div className="hw-kb-col-title hw-kb-todo">Todo <span>{allTasks.filter(t=>t.status==="todo").length}</span></div>
+                                {allTasks.filter(t=>t.status==="todo").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task" title={t.boardName}>{t.title}</div>))}
+                                {allTasks.filter(t=>t.status==="todo").length===0 && <div className="hw-kb-empty">No tasks</div>}
                               </div>
                               <div>
-                                <div className="hw-kb-col-title hw-kb-inprog">In Progress <span>{tasks.filter(t=>t.status==="inprogress").length}</span></div>
-                                {tasks.filter(t=>t.status==="inprogress").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
+                                <div className="hw-kb-col-title hw-kb-inprog">In Progress <span>{allTasks.filter(t=>t.status==="inprogress").length}</span></div>
+                                {allTasks.filter(t=>t.status==="inprogress").slice(0,4).map(t=>(<div key={t.id} className="hw-kb-task">{t.title}</div>))}
                                 {tasks.filter(t=>t.status==="inprogress").length===0 && <div className="hw-kb-empty">No tasks</div>}
                               </div>
                             </div>
