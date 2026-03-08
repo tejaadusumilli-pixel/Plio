@@ -78,6 +78,7 @@ export default function App() {
   const [editFirstName, setEditFirstName]   = useState("");
   const [editLastName, setEditLastName]     = useState("");
   const [editAvatarColor, setEditAvatarColor] = useState(0);
+  const [editGender, setEditGender]         = useState("male");
   const [profileSaving, setProfileSaving]   = useState(false);
   const [profileEditError, setProfileEditError] = useState("");
   const [dragTaskId, setDragTaskId]         = useState(null);
@@ -520,6 +521,7 @@ export default function App() {
     setEditFirstName(userData?.firstName || "");
     setEditLastName(userData?.lastName || "");
     setEditAvatarColor(userData?.avatarColor ?? 0);
+    setEditGender(userData?.gender || "male");
     setProfileEditError("");
     setEditingProfile(true);
   };
@@ -529,7 +531,7 @@ export default function App() {
     setProfileSaving(true); setProfileEditError("");
     try {
       const today = new Date().toISOString().split("T")[0];
-      const updates = { firstName: editFirstName.trim(), lastName: editLastName.trim(), avatarColor: editAvatarColor, lastProfileEdit: today };
+      const updates = { firstName: editFirstName.trim(), lastName: editLastName.trim(), avatarColor: editAvatarColor, gender: editGender, lastProfileEdit: today };
       await updateDoc(doc(db, "users", user.uid), updates);
       await updateProfile(user, { displayName: `${editFirstName.trim()} ${editLastName.trim()}`.trim() });
       setUserData(prev => ({ ...prev, ...updates }));
@@ -1971,6 +1973,16 @@ export default function App() {
                           <input className="input" value={editLastName} onChange={e => setEditLastName(e.target.value)} placeholder="Last name" style={{ fontSize: 13 }} />
                         </div>
                       </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 5 }}>Gender <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>(optional)</span></div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {["male","female"].map(g => (
+                            <button key={g} onClick={() => setEditGender(g)} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: editGender === g ? "1.5px solid rgba(167,139,250,0.7)" : "1.5px solid rgba(255,255,255,0.1)", background: editGender === g ? "rgba(167,139,250,0.12)" : "rgba(255,255,255,0.04)", color: editGender === g ? "#a78bfa" : "rgba(255,255,255,0.45)", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
+                              {g === "male" ? "♂" : "♀"} {g.charAt(0).toUpperCase() + g.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       {profileEditError && <div style={{ fontSize: 12, color: "#f87171", marginBottom: 8 }}>{profileEditError}</div>}
                       <div style={{ display: "flex", gap: 8 }}>
                         <button className="kb-btn kb-btn-secondary" onClick={() => { setEditingProfile(false); setProfileEditError(""); }}>Cancel</button>
@@ -2029,6 +2041,12 @@ export default function App() {
                     <div className="pp-row">
                       <span className="pp-label">Last Name</span>
                       <span className="pp-value">{userData?.lastName || "—"}</span>
+                    </div>
+                    <div className="pp-row">
+                      <span className="pp-label">Gender</span>
+                      <span className="pp-value" style={{display:"flex",alignItems:"center",gap:5}}>
+                        {(userData?.gender || "male") === "male" ? "♂" : "♀"} {(userData?.gender || "male").charAt(0).toUpperCase() + (userData?.gender || "male").slice(1)}
+                      </span>
                     </div>
                     <div className="pp-row">
                       <span className="pp-label">Email</span>
