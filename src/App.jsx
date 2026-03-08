@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import plioLogo from "./assets/plio-logo.svg";
+import boyImg from "./assets/boy.png";
+import girlImg from "./assets/girl.png";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -1036,6 +1038,7 @@ export default function App() {
     .hw-top-grid { display: grid; grid-template-columns: 240px 1fr; gap: 16px; margin-bottom: 18px; }
     .hw-user-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 28px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
     .hw-avatar { width: 72px !important; height: 72px !important; font-size: 26px !important; flex-shrink: 0; }
+    .hw-gender-avatar { width: 140px; height: 140px; object-fit: contain; filter: drop-shadow(0 8px 24px rgba(124,58,237,0.35)); margin-bottom: -8px; }
     .hw-user-info { text-align: center; }
     .hw-user-name { font-size: 16px; font-weight: 600; color: #f0eeff; margin-bottom: 5px; }
     .hw-user-email { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
@@ -1807,7 +1810,7 @@ export default function App() {
                 <div className="home-widgets">
                   <div className="hw-top-grid">
                     <div className="hw-user-card">
-                      <div className="big-avatar hw-avatar">{displayFirst[0]?.toUpperCase() || "U"}</div>
+                      <img src={(userData?.gender || "male") === "female" ? girlImg : boyImg} alt="avatar" className="hw-gender-avatar" />
                       <div className="hw-user-info">
                         <div className="hw-user-name">{displayFirst} {displayLast}</div>
                         <div className="hw-user-email">{user?.email}</div>
